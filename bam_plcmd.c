@@ -110,6 +110,7 @@ static inline void pileup_seq(FILE *fp, const bam_pileup1_t *p, int pos, int ref
 #define MPLP_PRINT_MAPQ (1<<10)
 #define MPLP_PER_SAMPLE (1<<11)
 #define MPLP_SMART_OVERLAPS (1<<12)
+#define MPLP_PRINT_QNAME (1<<13)
 
 void *bed_read(const char *fn);
 void bed_destroy(void *_h);
@@ -640,6 +641,18 @@ static int mpileup(mplp_conf_t *conf, int n, char **fn)
                             fprintf(pileup_fp, "%d", plp[i][j].qpos + 1); // FIXME: printf() is very slow...
                         }
                     }
+                    if (conf->flag & MPLP_PRINT_QNAME) {
+                        putc('\t', pileup_fp);
+                        int last = 0;
+                        for (j = 0; j < n_plp[i]; ++j) {
+                            const bam_pileup1_t *p = plp[i] + j;
+                            int c = bam_get_qual(p->b)[p->qpos];
+                            if ( c < conf->min_baseQ ) continue;
+
+                            if (last++) putc(',', pileup_fp);
+                            fprintf(pileup_fp, "%s", bam_get_qname(plp[i][j].b)); // FIXME: printf() is very slow...
+                        }
+                    }
                 }
             }
             putc('\n', pileup_fp);
@@ -812,6 +825,7 @@ static void print_usage(FILE *fp, const mplp_conf_t *mplp)
 "Output options for mpileup format (without -g/-v):\n"
 "  -O, --output-BP         output base positions on reads\n"
 "  -s, --output-MQ         output mapping quality\n"
+"  -N, --output-QNAME      output read name\n"
 "\n"
 "Output options for genotype likelihoods (when -g/-v is used):\n"
 "  -t, --output-tags LIST  optional tags to output:\n"
@@ -901,6 +915,8 @@ int bam_mpileup(int argc, char *argv[])
         {"output-bp", no_argument, NULL, 'O'},
         {"output-MQ", no_argument, NULL, 's'},
         {"output-mq", no_argument, NULL, 's'},
+        {"output-QNAME", no_argument, NULL, 'N'},
+        {"output-qname", no_argument, NULL, 'N'},
         {"output-tags", required_argument, NULL, 't'},
         {"uncompressed", no_argument, NULL, 'u'},
         {"ext-prob", required_argument, NULL, 'e'},
@@ -914,7 +930,7 @@ int bam_mpileup(int argc, char *argv[])
         {"platforms", required_argument, NULL, 'P'},
         {NULL, 0, NULL, 0}
     };
-    while ((c = getopt_long(argc, argv, "Agf:r:l:q:Q:uRC:BDSd:L:b:P:po:e:h:Im:F:EG:6OsVvxt:",lopts,NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, "Agf:r:l:q:Q:uRC:BDSd:L:b:P:po:e:h:Im:F:EG:6OsNVvxt:",lopts,NULL)) >= 0) {
         switch (c) {
         case 'x': mplp.flag &= ~MPLP_SMART_OVERLAPS; break;
         case  1 :
@@ -956,6 +972,7 @@ int bam_mpileup(int argc, char *argv[])
         case 'R': mplp.flag |= MPLP_IGNORE_RG; break;
         case 's': mplp.flag |= MPLP_PRINT_MAPQ; break;
         case 'O': mplp.flag |= MPLP_PRINT_POS; break;
+        case 'N': mplp.flag |= MPLP_PRINT_QNAME; break;
         case 'C': mplp.capQ_thres = atoi(optarg); break;
         case 'q': mplp.min_mq = atoi(optarg); break;
         case 'Q': mplp.min_baseQ = atoi(optarg); break;
